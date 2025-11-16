@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  memberships        OrganizationMember[]
+  createdProjects    Project[]
+  createdDiagrams    Diagram[]
+  diagramVersions    DiagramVersion[]
+  subscription       Subscription?
+
+  @@index([email])
+  @@map("users")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner    User                 @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  OrganizationMember[]
+  projects Project[]
+
+  @@index([ownerId])
+  @@index([slug])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("member")
+  joinedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  organizationId String
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation(fields: [createdBy], references: [id])
+  diagrams     Diagram[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+  @@map("projects")
+}
+
+model Diagram {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  projectId   String
+  createdBy   String
+  isPublic    Boolean  @default(false)
+  publicId    String?  @unique
+  nodes       Json     @default("[]")
+  edges       Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator  User             @relation(fields: [createdBy], references: [id])
+  versions DiagramVersion[]
+
+  @@index([projectId])
+  @@index([createdBy])
+  @@index([publicId])
+  @@index([isPublic])
+  @@map("diagrams")
+}
+
+model DiagramVersion {
+  id            String   @id @default(cuid())
+  diagramId     String
+  versionNumber Int
+  name          String?
+  nodes         Json
+  edges         Json
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  diagram Diagram @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@unique([diagramId, versionNumber])
+  @@index([diagramId])
+  @@map("diagram_versions")
+}
+
+model Subscription {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  planId             String   @default("plan_free")
+  status             String   @default("active")
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
